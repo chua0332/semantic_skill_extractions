@@ -24,7 +24,7 @@ embeddings = load('./skills_embeddings.npy')
 
 
 #Reading in the deduped skills titles
-df = pd.read_csv('./skill_master_dedup_06nov2022.csv'))
+df = pd.read_csv('./skill_master_dedup_06nov2022.csv')
 df = df[['skill_id', 'skill_title', 'dup_parent']]
 df['merged_title'] = df['dup_parent'].combine_first(df.skill_title)
 df['source'] = 'skill title'
