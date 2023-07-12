@@ -58,6 +58,7 @@ openpyxl==3.1.2
 packaging==23.1
 pandas==1.4.2
 parso==0.8.3
+path==16.7.1
 pathy==0.10.1
 pexpect==4.8.0
 pickleshare==0.7.5
