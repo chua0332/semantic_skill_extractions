@@ -9,7 +9,7 @@ import requests
 import os
 
 
-path = os.path.dirname(__file__)
+#path = os.path.dirname(__file__)
 
 #initializing language model
 model = SentenceTransformer('all-mpnet-base-v2')
