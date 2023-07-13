@@ -8,6 +8,9 @@ from numpy import load
 import requests
 import sys
 import path
+import os
+
+print(os.listdir())
 
 dir = path.Path(__file__).abspath()
 sys.path.append(dir.parent.parent)
