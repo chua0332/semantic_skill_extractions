@@ -20,11 +20,11 @@ token_skill_classifier = pipeline(model="jjzha/jobbert_skill_extraction", aggreg
 token_knowledge_classifier = pipeline(model="jjzha/jobbert_knowledge_extraction", aggregation_strategy="first")
 
 #Importing the saved MPNET's embeddings
-embeddings = load('./skills_embeddings.npy')
+embeddings = load('.\skills_embeddings.npy')
 
 
 #Reading in the deduped skills titles
-df = pd.read_csv('./skill_master_dedup_06nov2022.csv')
+df = pd.read_csv('.\skill_master_dedup_06nov2022.csv')
 df = df[['skill_id', 'skill_title', 'dup_parent']]
 df['merged_title'] = df['dup_parent'].combine_first(df.skill_title)
 df['source'] = 'skill title'
@@ -120,7 +120,7 @@ def ada_extract_skills(text: str):
     r = r.json()
     
     for item in r['matches']:
-        if item['score'] >= 0.75:
+        if item['score'] >= 0.8:
             ada_skills_list.append(item['metadata']['skill_title'])
     return ada_skills_list
   
