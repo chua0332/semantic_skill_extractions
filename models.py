@@ -10,7 +10,7 @@ import sys
 import path
 import os
 
-print(os.listdir())
+print(os.getcwd())
 
 dir = path.Path(__file__).abspath()
 sys.path.append(dir.parent.parent)
