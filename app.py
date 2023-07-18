@@ -5,7 +5,7 @@ with st.sidebar:
     st.image("https://www.onepointltd.com/wp-content/uploads/2020/03/inno2.png")
     st.markdown('Which algo do you wanna use?')
     options = st.selectbox('Which algo are you choosing?',
-                           ['MPNET_span', 'SEAv1','ada002'],
+                           ['SEAv1','SEAv1_plus'],
                            label_visibility='collapsed')
     
     flag = options
