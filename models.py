@@ -6,11 +6,9 @@ import pandas as pd
 import numpy as np
 from numpy import load
 import requests
-import sys
-import path
 import os
 
-print(os.getcwd())
+
 
 '''
 dir = path.Path(__file__).abspath()
@@ -25,17 +23,23 @@ token_skill_classifier = pipeline(model="jjzha/jobbert_skill_extraction", aggreg
 token_knowledge_classifier = pipeline(model="jjzha/jobbert_knowledge_extraction", aggregation_strategy="first")
 
 #Importing the saved MPNET's embeddings
-embeddings = load('/app/semantic_skill_extractions/skills_embeddings.npy')
+embeddings = load(os.path.join(os.getcwd(),'skills_embeddings.npy'))
 
 
 #Reading in the deduped skills titles
-df = pd.read_csv('/app/semantic_skill_extractions/skill_master_dedup_06nov2022.csv')
+df = pd.read_csv(os.path.join(os.getcwd(),'skill_master_dedup_06nov2022.csv'))
 df = df[['skill_id', 'skill_title', 'dup_parent']]
 df['merged_title'] = df['dup_parent'].combine_first(df.skill_title)
 df['source'] = 'skill title'
 
 df = df[['merged_title', 'skill_title', 'skill_id', 'source']]
-df_cleaned = df
+
+df2 = pd.read_csv(os.path.join(os.getcwd(),'unique_2k_skills.csv'))
+df2 = df2[['skill_title','skill_description_final','skill_id']]
+df2['source'] = 'full_description'
+df2.columns = ['merged_title', 'skill_title','skill_id','source']
+
+df_cleaned = pd.concat([df,df2], ignore_index=True)
 df_cleaned = df_cleaned.dropna()
 
 
@@ -56,7 +60,7 @@ def aggregate_span(results):
 
     return new_results
 
-df_clean = pd.DataFrame(list(zip(embeddings, list(df_cleaned['skill_title']), list(df_cleaned['source']))))
+df_clean = pd.DataFrame(list(zip(embeddings, list(df_cleaned['merged_title']), list(df_cleaned['source']))))
 
 def find_similar(q,k):
     testing = model.encode(q)
@@ -77,7 +81,7 @@ def find_similar(q,k):
       return df_output
     
 #Function for combined list output (combining tools/skills for now) --> for MPNET with span
-def ner_combined_latest(text:str):
+def ner_combined_latest(text: str):
     output = []
     
     
@@ -103,10 +107,43 @@ def ner_combined_latest(text:str):
 
     span_extracted = df_skills_extracted.sort_values('score', ascending = False).drop_duplicates(subset ='skill', keep = 'first')
 
-    span_ex_list = list(span_extracted.loc[span_extracted['score'] >= 0.7]['skill'].sort_values())
+    span_ex_list = list(span_extracted.loc[span_extracted['score'] >= 0.55]['skill'].sort_values())
 
     return span_ex_list
-  
+
+# Pure mpnet extraction
+def mpnet_extract(text: str): 
+    if len(text.split())<=512:
+        text = text[:512]
+        ex_list = find_similar(text, 20)
+        ex_list = ex_list.drop_duplicates(subset = 'skill', keep = 'first')
+        final_extract_list = list(ex_list.loc[ex_list['score'] >= 0.55]['skill'].sort_values())
+    else:
+        text = text[:512]
+        text2 = text[512:]
+        ex_list = find_similar(text, 20)
+        ex_list = ex_list.drop_duplicates(subset = 'skill', keep = 'first')
+        ex_final = list(ex_list.loc[ex_list['score'] >= 0.55]['skill'].sort_values())
+        ex_list2 = find_similar(text2, 20)
+        ex_list2 = ex_list2.drop_duplicates(subset = 'skill', keep = 'first')
+        ex_final2 = list(ex_list2.loc[ex_list2['score'] >= 0.55]['skill'].sort_values())
+        final_extract_list = ex_final + ex_final2
+        
+    return final_extract_list
+
+def mpnet_combined(text: str):
+    a = ner_combined_latest(text)
+    b = mpnet_extract(text)
+    #Combining both span extraction + mpnet sentence embeddings
+    mpnet_combinelist = a + b
+    #Converting to lower case so i can remove for duplications
+    mpnet_combinelist = [x.lower() for x in mpnet_combinelist]
+    mpnet_combinelist = list(dict.fromkeys(mpnet_combinelist))
+    mpnet_combinelist.sort()
+    
+    return mpnet_combinelist
+    
+    
 
 #For SEA V1
 def sea_extract_skills(text: str):
@@ -117,7 +154,7 @@ def sea_extract_skills(text: str):
     
     return sea_v1_list
 
-
+'''
 #For ADA002
 def ada_extract_skills(text: str):
     ada_skills_list = []
@@ -128,17 +165,17 @@ def ada_extract_skills(text: str):
         if item['score'] >= 0.8:
             ada_skills_list.append(item['metadata']['skill_title'])
     return ada_skills_list
-  
+
+'''
 
 #Skills Extractions Overall
 
 def main_skills_extractor(text: str, flag):
-    if flag == 'MPNET_span':
-        extractedskills_list = ner_combined_latest(text)
     if flag == 'SEAv1':
         extractedskills_list = sea_extract_skills(text)
-    if flag == 'ada002':
-        extractedskills_list = ada_extract_skills(text)
+        
+    if flag == 'SEAv1_plus':
+        extractedskills_list = mpnet_combined(text)
     
     return extractedskills_list
   
