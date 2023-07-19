@@ -1,6 +1,5 @@
 from ssg_sea.extract_skills import extract_skills, batch_extract_skills
 from transformers import pipeline
-from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
 import pandas as pd
 import numpy as np
@@ -16,7 +15,16 @@ sys.path.append(dir.parent.parent)
 '''
 
 #initializing language model
-model = SentenceTransformer('all-mpnet-base-v2')
+#model = SentenceTransformer('all-mpnet-base-v2')
+
+API_TOKEN = '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'
+API_URL = "https://api-inference.huggingface.co/pipeline/feature-extraction/sentence-transformers/all-mpnet-base-v2"
+headers = {"Authorization": f"Bearer {API_TOKEN}"}
+
+def query(payload):
+	response = requests.post(API_URL, headers=headers, json=payload)
+	return response.json()
+	
 
 #intitializing JINZHA span extraction model
 token_skill_classifier = pipeline(model="jjzha/jobbert_skill_extraction", aggregation_strategy="first")
@@ -63,9 +71,11 @@ def aggregate_span(results):
 df_clean = pd.DataFrame(list(zip(embeddings, list(df_cleaned['merged_title']), list(df_cleaned['source']))))
 
 def find_similar(q,k):
-    testing = model.encode(q)
+    testing = query({"inputs":q})
+    testing = np.array(testing)
     trial = []
-    vals = cosine_similarity([testing],embeddings)
+    testing = testing.reshape(1,-1)
+    vals = cosine_similarity(testing,embeddings)
     idx_asc = vals.argsort()[0][-k:]
     idx_dsc = idx_asc[::-1]
     flatv = np.sort(vals[0])
