@@ -1,10 +1,12 @@
 from ssg_sea.extract_skills import extract_skills, batch_extract_skills
 from transformers import pipeline
+from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
 import pandas as pd
 import numpy as np
 from numpy import load
 import requests
+import math
 import os
 
 
@@ -15,16 +17,7 @@ sys.path.append(dir.parent.parent)
 '''
 
 #initializing language model
-#model = SentenceTransformer('all-mpnet-base-v2')
-
-API_TOKEN = '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'
-API_URL = "https://api-inference.huggingface.co/pipeline/feature-extraction/sentence-transformers/all-mpnet-base-v2"
-headers = {"Authorization": f"Bearer {API_TOKEN}"}
-
-def query(payload):
-	response = requests.post(API_URL, headers=headers, json=payload)
-	return response.json()
-	
+model = SentenceTransformer('all-mpnet-base-v2')
 
 #intitializing JINZHA span extraction model
 token_skill_classifier = pipeline(model="jjzha/jobbert_skill_extraction", aggregation_strategy="first")
@@ -71,8 +64,7 @@ def aggregate_span(results):
 df_clean = pd.DataFrame(list(zip(embeddings, list(df_cleaned['merged_title']), list(df_cleaned['source']))))
 
 def find_similar(q,k):
-    testing = query({"inputs":q})
-    testing = np.array(testing)
+    testing = model.encode(q)
     trial = []
     testing = testing.reshape(1,-1)
     vals = cosine_similarity(testing,embeddings)
@@ -89,20 +81,42 @@ def find_similar(q,k):
         trial.append(a)
       df_output = pd.DataFrame(trial)
       return df_output
+
+# Function to process long chunks of text
+def long_chunk(text: str):
+    context_length = 512
+    split_text = text.split()
+    count = len(split_text)
+    repeats = math.ceil(count/context_length)
+    tracker = 0
+    ex_list = pd.DataFrame(columns = ['score','skill','phrase','matched_by'])
+    
+    for a in range(repeats):
+        b =(a+1)*context_length
+        chunked_text = ' '.join(split_text[tracker:b])
+        tracker = b
+        chunked_list = find_similar(chunked_text,20)
+        ex_list = pd.concat([ex_list, chunked_list], ignore_index=True)
+        
+    ex_list = ex_list.drop_duplicates(subset='skill', keep='first')
+    ex_final = list(ex_list.loc[ex_list['score'] >= 0.5]['skill'].sort_values())
+    return ex_final
     
 #Function for combined list output (combining tools/skills for now) --> for MPNET with span
 def ner_combined_latest(text: str):
-    output = []
+    if len(text.split()) > 300:
+        output = []
+        for line in text.split('  '):
+            if len(line) == 0:
+                continue
+            b = token_skill_classifier(line)
+            c = token_knowledge_classifier(line)
+            output += b + c
+    else:
+        output_skills = token_skill_classifier(text)
+        output_knowledge = token_knowledge_classifier(text)
+        output = output_skills + output_knowledge
     
-    
-    for line in text.split('  '):
-        if len(line) == 0:
-            continue
-        
-        b = token_skill_classifier(line)
-        c = token_knowledge_classifier(line)
-        output += b + c
-
     if len(output) > 0:
         output_skills = aggregate_span(output)
     skill_list = []
@@ -124,22 +138,13 @@ def ner_combined_latest(text: str):
 # Pure mpnet extraction
 def mpnet_extract(text: str): 
     if len(text.split())<=512:
-        text = text[:512]
-        ex_list = find_similar(text, 20)
-        ex_list = ex_list.drop_duplicates(subset = 'skill', keep = 'first')
-        final_extract_list = list(ex_list.loc[ex_list['score'] >= 0.55]['skill'].sort_values())
+        ex_final = long_chunk(text)
     else:
-        text = text[:512]
-        text2 = text[512:]
-        ex_list = find_similar(text, 20)
-        ex_list = ex_list.drop_duplicates(subset = 'skill', keep = 'first')
-        ex_final = list(ex_list.loc[ex_list['score'] >= 0.55]['skill'].sort_values())
-        ex_list2 = find_similar(text2, 20)
-        ex_list2 = ex_list2.drop_duplicates(subset = 'skill', keep = 'first')
-        ex_final2 = list(ex_list2.loc[ex_list2['score'] >= 0.55]['skill'].sort_values())
-        final_extract_list = ex_final + ex_final2
-        
-    return final_extract_list
+        ex_list = find_similar(text,20)
+        ex_list = ex_list.drop_duplicates(subset='skill', keep='first')
+        ex_final = list(ex_list.loc[ex_list['score'] >=0.55]['skill'].sort_values())
+    return ex_final
+     
 
 def mpnet_combined(text: str):
     a = ner_combined_latest(text)
