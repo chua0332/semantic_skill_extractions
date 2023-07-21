@@ -1,4 +1,2 @@
 # semantic_skill_extractions
-* this repo
-
-### test
+Exploring the use of transformers and LLMs to better capture semantic meaning of our skills nomenclature.
